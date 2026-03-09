@@ -271,3 +271,8 @@ export function logE2bSandboxEvent(
     duration_ms: durationMs,
   });
 }
+
+/**
+ * Default logger instance for convenience
+ */
+export const logger = createLogger();

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSession } from '@auth0/nextjs-auth0/edge';
+import { getSession } from '@auth0/nextjs-auth0';
 import { createServerClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';

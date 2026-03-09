@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@auth0/nextjs-auth0/edge';
+import { getSession } from '@auth0/nextjs-auth0';
 import { createServerClient } from '@/lib/supabase/server';
 import { validateCustomRule, validateCustomRuleYAML } from '@/lib/custom-rules';
 

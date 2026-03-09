@@ -30,6 +30,11 @@ export function getQdrantClient(): QdrantClient {
 }
 
 /**
+ * Export qdrantClient for direct access (lazy initialization)
+ */
+export { qdrantClient };
+
+/**
  * Get collection name for a project
  */
 export function getCollectionName(projectId: string): string {
