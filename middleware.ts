@@ -5,11 +5,15 @@
  * 1. Authentication guard for protected routes
  * 2. Rate limiting for API routes
  * 3. Request logging and monitoring
+ * 
+ * Note: Using Node.js runtime for crypto support
  */
+
+export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
+import { getSession } from '@auth0/nextjs-auth0';
 import { ratelimit } from './lib/redis/client';
 import { authenticateApiKey, isValidApiKeyFormat } from './lib/auth/api-keys';
 
