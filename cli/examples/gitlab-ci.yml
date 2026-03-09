@@ -1,0 +1,60 @@
+# Example GitLab CI configuration for DevSentinel integration
+# Save this as .gitlab-ci.yml in your repository
+
+stages:
+  - test
+  - analyze
+  - deploy
+
+# Run DevSentinel analysis
+devsentinel:
+  stage: analyze
+  image: node:18
+  
+  before_script:
+    - npm install -g @devsentinel/cli
+  
+  script:
+    - |
+      devsentinel check $DEVSENTINEL_PROJECT_ID \
+        --threshold 80 \
+        --timeout 600 \
+        --verbose
+  
+  only:
+    - main
+    - develop
+    - merge_requests
+  
+  variables:
+    DEVSENTINEL_API_KEY: $DEVSENTINEL_API_KEY
+  
+  allow_failure: false
+
+# Optional: Run analysis but don't fail the pipeline
+devsentinel-optional:
+  stage: analyze
+  image: node:18
+  
+  before_script:
+    - npm install -g @devsentinel/cli
+  
+  script:
+    - |
+      devsentinel check $DEVSENTINEL_PROJECT_ID \
+        --threshold 70 \
+        --timeout 600 \
+        --verbose || echo "Analysis failed but continuing..."
+  
+  only:
+    - branches
+  
+  except:
+    - main
+    - develop
+  
+  allow_failure: true
+
+# Required CI/CD variables (Settings > CI/CD > Variables):
+# - DEVSENTINEL_API_KEY: Your DevSentinel API key (masked)
+# - DEVSENTINEL_PROJECT_ID: Your DevSentinel project ID

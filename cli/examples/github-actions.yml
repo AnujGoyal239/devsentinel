@@ -1,0 +1,52 @@
+# Example GitHub Actions workflow for DevSentinel integration
+# Save this as .github/workflows/devsentinel.yml in your repository
+
+name: DevSentinel Code Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: Run DevSentinel Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install DevSentinel CLI
+        run: npm install -g @devsentinel/cli
+      
+      - name: Run DevSentinel Analysis
+        env:
+          DEVSENTINEL_API_KEY: ${{ secrets.DEVSENTINEL_API_KEY }}
+        run: |
+          devsentinel check ${{ secrets.DEVSENTINEL_PROJECT_ID }} \
+            --threshold 80 \
+            --timeout 600 \
+            --verbose
+      
+      - name: Comment on PR (on failure)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ DevSentinel analysis failed or health score below threshold. Please review the code quality issues.'
+            })
+
+# Required secrets:
+# - DEVSENTINEL_API_KEY: Your DevSentinel API key
+# - DEVSENTINEL_PROJECT_ID: Your DevSentinel project ID

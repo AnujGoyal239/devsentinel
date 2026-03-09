@@ -1,0 +1,138 @@
+# Advanced DevSentinel Analysis Workflow
+# Includes PR comments, Slack notifications, and issue creation
+
+name: DevSentinel Advanced Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run DevSentinel Analysis
+        id: devsentinel
+        uses: devsentinel/github-action@v1
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.DEVSENTINEL_API_KEY }}
+          project-id: ${{ secrets.DEVSENTINEL_PROJECT_ID }}
+          threshold: 85
+          timeout: 900
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthScore = ${{ steps.devsentinel.outputs.health-score }};
+            const threshold = 85;
+            const status = '${{ steps.devsentinel.outputs.status }}';
+            const runId = '${{ steps.devsentinel.outputs.run-id }}';
+            
+            let emoji = '✅';
+            let statusText = 'Passed';
+            if (healthScore < threshold) {
+              emoji = '❌';
+              statusText = 'Failed';
+            } else if (healthScore < 90) {
+              emoji = '⚠️';
+              statusText = 'Warning';
+            }
+            
+            const body = `## ${emoji} DevSentinel Analysis ${statusText}\n\n` +
+                        `**Health Score:** ${healthScore}/100 (Threshold: ${threshold})\n` +
+                        `**Status:** ${status}\n` +
+                        `**Run ID:** ${runId}\n\n` +
+                        `[View Full Report](https://devsentinel.com/project/${{ secrets.DEVSENTINEL_PROJECT_ID }}/report)`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+      
+      - name: Create Issue on Low Score
+        if: steps.devsentinel.outputs.health-score < 80
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Code Health Score Below 80',
+              body: `The DevSentinel health score has dropped to **${{ steps.devsentinel.outputs.health-score }}/100**.\n\n` +
+                    `**Run ID:** ${{ steps.devsentinel.outputs.run-id }}\n` +
+                    `**Commit:** ${context.sha}\n` +
+                    `**Branch:** ${context.ref}\n\n` +
+                    `Please review the [analysis results](https://devsentinel.com/project/${{ secrets.DEVSENTINEL_PROJECT_ID }}/report).`,
+              labels: ['code-quality', 'automated', 'urgent']
+            });
+      
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "DevSentinel Analysis Complete",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.devsentinel.outputs.health-score >= 85 && '✅' || '❌' }} DevSentinel Analysis"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Health Score:*\n${{ steps.devsentinel.outputs.health-score }}/100"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:*\n${{ steps.devsentinel.outputs.status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref_name }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Report"
+                      },
+                      "url": "https://devsentinel.com/project/${{ secrets.DEVSENTINEL_PROJECT_ID }}/report"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: Fail if below threshold
+        if: steps.devsentinel.outputs.health-score < 85
+        run: |
+          echo "Health score ${{ steps.devsentinel.outputs.health-score }} is below threshold 85"
+          exit 1

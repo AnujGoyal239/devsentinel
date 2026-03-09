@@ -1,0 +1,51 @@
+# Scheduled DevSentinel Analysis
+# Runs daily at 9 AM UTC to monitor code health over time
+
+name: Daily Code Health Check
+
+on:
+  schedule:
+    # Run at 9 AM UTC every day
+    - cron: '0 9 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run DevSentinel Analysis
+        id: devsentinel
+        uses: devsentinel/github-action@v1
+        with:
+          api-key: ${{ secrets.DEVSENTINEL_API_KEY }}
+          project-id: ${{ secrets.DEVSENTINEL_PROJECT_ID }}
+          threshold: 75
+          timeout: 1200
+      
+      - name: Send Daily Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthScore = ${{ steps.devsentinel.outputs.health-score }};
+            const runId = '${{ steps.devsentinel.outputs.run-id }}';
+            
+            // Create a discussion post with daily results
+            github.rest.discussions.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              category_id: 'daily-reports', // Configure this in your repo
+              title: `Daily Code Health Report - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Daily DevSentinel Analysis\n\n` +
+                    `**Date:** ${new Date().toLocaleDateString()}\n` +
+                    `**Health Score:** ${healthScore}/100\n` +
+                    `**Run ID:** ${runId}\n\n` +
+                    `[View Full Report](https://devsentinel.com/project/${{ secrets.DEVSENTINEL_PROJECT_ID }}/report)\n\n` +
+                    `### Trend\n` +
+                    `Track your code health over time in the [DevSentinel Dashboard](https://devsentinel.com/dashboard).`
+            });

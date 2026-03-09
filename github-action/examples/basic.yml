@@ -1,0 +1,25 @@
+# Basic DevSentinel Analysis Workflow
+# Runs on push to main/develop branches and on pull requests
+
+name: DevSentinel Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run DevSentinel Analysis
+        uses: devsentinel/github-action@v1
+        with:
+          api-key: ${{ secrets.DEVSENTINEL_API_KEY }}
+          project-id: ${{ secrets.DEVSENTINEL_PROJECT_ID }}
+          threshold: 80

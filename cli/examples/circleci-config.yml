@@ -1,0 +1,91 @@
+# Example CircleCI configuration for DevSentinel integration
+# Save this as .circleci/config.yml in your repository
+
+version: 2.1
+
+# Define reusable commands
+commands:
+  install-cli:
+    description: "Install DevSentinel CLI"
+    steps:
+      - run:
+          name: Install DevSentinel CLI
+          command: npm install -g @devsentinel/cli
+
+  run-analysis:
+    description: "Run DevSentinel analysis"
+    parameters:
+      threshold:
+        type: integer
+        default: 80
+      timeout:
+        type: integer
+        default: 600
+    steps:
+      - run:
+          name: Run DevSentinel Analysis
+          command: |
+            devsentinel check $DEVSENTINEL_PROJECT_ID \
+              --threshold << parameters.threshold >> \
+              --timeout << parameters.timeout >> \
+              --verbose
+
+# Define jobs
+jobs:
+  analyze:
+    docker:
+      - image: cimg/node:18.0
+    
+    steps:
+      - checkout
+      - install-cli
+      - run-analysis:
+          threshold: 80
+          timeout: 600
+
+  analyze-strict:
+    docker:
+      - image: cimg/node:18.0
+    
+    steps:
+      - checkout
+      - install-cli
+      - run-analysis:
+          threshold: 90
+          timeout: 600
+
+# Define workflows
+workflows:
+  version: 2
+  
+  # Run on every commit
+  build-and-analyze:
+    jobs:
+      - analyze:
+          context: devsentinel
+          filters:
+            branches:
+              only:
+                - main
+                - develop
+  
+  # Run strict analysis on main branch
+  main-branch:
+    jobs:
+      - analyze-strict:
+          context: devsentinel
+          filters:
+            branches:
+              only: main
+
+# Required environment variables (in context "devsentinel"):
+# - DEVSENTINEL_API_KEY: Your DevSentinel API key
+# - DEVSENTINEL_PROJECT_ID: Your DevSentinel project ID
+#
+# To create the context:
+# 1. Go to CircleCI > Organization Settings > Contexts
+# 2. Click "Create Context"
+# 3. Name: devsentinel
+# 4. Add environment variables:
+#    - DEVSENTINEL_API_KEY
+#    - DEVSENTINEL_PROJECT_ID

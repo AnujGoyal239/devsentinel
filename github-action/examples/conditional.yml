@@ -1,0 +1,72 @@
+# Conditional DevSentinel Analysis
+# Only runs when specific files change
+
+name: Conditional Analysis
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      # Only run when source code changes
+      - 'src/**'
+      - 'lib/**'
+      - 'app/**'
+      - 'components/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'lib/**'
+      - 'app/**'
+      - 'components/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for better analysis
+      
+      - name: Check changed files
+        id: changes
+        run: |
+          # Get list of changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check if any TypeScript/JavaScript files changed
+          if echo "$CHANGED_FILES" | grep -qE '\.(ts|tsx|js|jsx)$'; then
+            echo "code-changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "code-changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run DevSentinel Analysis
+        if: steps.changes.outputs.code-changed == 'true'
+        uses: devsentinel/github-action@v1
+        with:
+          api-key: ${{ secrets.DEVSENTINEL_API_KEY }}
+          project-id: ${{ secrets.DEVSENTINEL_PROJECT_ID }}
+          threshold: 80
+      
+      - name: Skip Analysis
+        if: steps.changes.outputs.code-changed == 'false'
+        run: |
+          echo "No code changes detected. Skipping analysis."
+          echo "Only documentation or configuration files were modified."

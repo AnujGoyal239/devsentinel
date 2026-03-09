@@ -1,0 +1,24 @@
+# Source files (only ship compiled code)
+src/
+
+# Tests
+**/*.test.ts
+**/__tests__/
+
+# Configuration
+tsconfig.json
+vitest.config.ts
+
+# Examples
+examples/
+
+# Development files
+.gitignore
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+
+# Logs
+*.log

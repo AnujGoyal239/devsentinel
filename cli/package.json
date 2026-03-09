@@ -1,0 +1,38 @@
+{
+  "name": "@devsentinel/cli",
+  "version": "1.0.0",
+  "description": "DevSentinel CLI for CI/CD integration",
+  "main": "dist/index.js",
+  "bin": {
+    "devsentinel": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest --run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "devsentinel",
+    "code-analysis",
+    "ci-cd",
+    "cli"
+  ],
+  "author": "DevSentinel",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "chalk": "^5.4.1",
+    "commander": "^13.0.0",
+    "ora": "^8.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.15",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

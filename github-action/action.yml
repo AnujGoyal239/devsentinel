@@ -1,0 +1,98 @@
+name: 'DevSentinel Code Analysis'
+description: 'Run DevSentinel code analysis in your CI/CD pipeline with automatic health score validation'
+author: 'DevSentinel'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  api-key:
+    description: 'DevSentinel API key (starts with ds_)'
+    required: true
+  project-id:
+    description: 'DevSentinel project ID to analyze'
+    required: true
+  threshold:
+    description: 'Minimum health score (0-100). Build fails if score is below this value.'
+    required: false
+    default: '80'
+  timeout:
+    description: 'Maximum wait time in seconds for analysis to complete'
+    required: false
+    default: '600'
+  api-url:
+    description: 'DevSentinel API URL (for self-hosted instances)'
+    required: false
+    default: 'https://devsentinel.com'
+
+outputs:
+  health-score:
+    description: 'The health score from the analysis (0-100)'
+  status:
+    description: 'Analysis status (complete, failed)'
+  run-id:
+    description: 'Analysis run ID for reference'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install DevSentinel CLI
+      shell: bash
+      run: |
+        echo "Installing DevSentinel CLI..."
+        npm install -g @devsentinel/cli
+    
+    - name: Run DevSentinel Analysis
+      id: analysis
+      shell: bash
+      env:
+        DEVSENTINEL_API_KEY: ${{ inputs.api-key }}
+        DEVSENTINEL_API_URL: ${{ inputs.api-url }}
+      run: |
+        echo "Starting DevSentinel analysis..."
+        echo "Project ID: ${{ inputs.project-id }}"
+        echo "Threshold: ${{ inputs.threshold }}"
+        echo "Timeout: ${{ inputs.timeout }}s"
+        echo ""
+        
+        # Run the check command and capture output
+        set +e
+        OUTPUT=$(devsentinel check "${{ inputs.project-id }}" \
+          --threshold "${{ inputs.threshold }}" \
+          --timeout "${{ inputs.timeout }}" \
+          --verbose 2>&1)
+        EXIT_CODE=$?
+        set -e
+        
+        echo "$OUTPUT"
+        
+        # Extract health score from output (format: "Health Score: XX/100")
+        HEALTH_SCORE=$(echo "$OUTPUT" | grep -oP "Health Score: \K\d+" || echo "0")
+        echo "health-score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+        
+        # Extract run ID from output (format: "Run ID: run_xyz")
+        RUN_ID=$(echo "$OUTPUT" | grep -oP "Run ID: \K\S+" || echo "unknown")
+        echo "run-id=$RUN_ID" >> $GITHUB_OUTPUT
+        
+        # Determine status based on exit code
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "status=complete" >> $GITHUB_OUTPUT
+          echo ""
+          echo "✅ Analysis passed! Health score: $HEALTH_SCORE/100"
+        elif [ $EXIT_CODE -eq 2 ]; then
+          echo "status=complete" >> $GITHUB_OUTPUT
+          echo ""
+          echo "❌ Health score below threshold: $HEALTH_SCORE < ${{ inputs.threshold }}"
+          exit 2
+        else
+          echo "status=failed" >> $GITHUB_OUTPUT
+          echo ""
+          echo "❌ Analysis failed with exit code $EXIT_CODE"
+          exit 1
+        fi

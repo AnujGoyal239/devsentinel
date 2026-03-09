@@ -1,0 +1,90 @@
+// Example Jenkinsfile for DevSentinel integration
+// Save this as Jenkinsfile in your repository root
+
+pipeline {
+  agent any
+  
+  environment {
+    // Load API key from Jenkins credentials
+    DEVSENTINEL_API_KEY = credentials('devsentinel-api-key')
+    DEVSENTINEL_PROJECT_ID = 'your-project-id-here'
+  }
+  
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+    
+    stage('Install CLI') {
+      steps {
+        sh 'npm install -g @devsentinel/cli'
+      }
+    }
+    
+    stage('DevSentinel Analysis') {
+      steps {
+        script {
+          def exitCode = sh(
+            script: '''
+              devsentinel check $DEVSENTINEL_PROJECT_ID \
+                --threshold 80 \
+                --timeout 600 \
+                --verbose
+            ''',
+            returnStatus: true
+          )
+          
+          if (exitCode == 2) {
+            error('Health score below threshold')
+          } else if (exitCode != 0) {
+            error('DevSentinel analysis failed')
+          }
+        }
+      }
+    }
+    
+    stage('Deploy') {
+      when {
+        branch 'main'
+      }
+      steps {
+        echo 'Deploying application...'
+        // Add your deployment steps here
+      }
+    }
+  }
+  
+  post {
+    success {
+      echo '✓ DevSentinel analysis passed'
+    }
+    
+    failure {
+      echo '✗ DevSentinel analysis failed or health score below threshold'
+      
+      // Optional: Send notification
+      emailext(
+        subject: "DevSentinel Analysis Failed: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+        body: "The DevSentinel analysis failed or health score is below threshold.\n\nCheck console output at ${env.BUILD_URL}",
+        to: "${env.CHANGE_AUTHOR_EMAIL}"
+      )
+    }
+    
+    always {
+      cleanWs()
+    }
+  }
+}
+
+// Required Jenkins credentials:
+// - devsentinel-api-key: Secret text containing your DevSentinel API key
+//
+// To create the credential:
+// 1. Go to Jenkins > Manage Jenkins > Credentials
+// 2. Click "Add Credentials"
+// 3. Kind: Secret text
+// 4. Secret: Your DevSentinel API key (starts with ds_)
+// 5. ID: devsentinel-api-key
+// 6. Description: DevSentinel API Key
