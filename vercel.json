@@ -4,13 +4,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "env": {
-    "NEXT_PUBLIC_APP_URL": "@next-public-app-url",
-    "NEXT_PUBLIC_SUPABASE_URL": "@next-public-supabase-url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@next-public-supabase-anon-key",
-    "NEXT_PUBLIC_POSTHOG_KEY": "@next-public-posthog-key",
-    "NEXT_PUBLIC_POSTHOG_HOST": "@next-public-posthog-host"
-  },
   "headers": [
     {
       "source": "/(.*)",
