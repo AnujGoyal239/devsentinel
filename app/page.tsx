@@ -180,7 +180,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Features Section */}
         <section className="container mx-auto px-4 py-16 md:py-24" aria-labelledby="features-heading">

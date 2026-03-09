@@ -2,31 +2,17 @@
  * Next.js Middleware
  * 
  * Handles:
- * 1. Authentication guard for protected routes
- * 2. Rate limiting for API routes
- * 3. Request logging and monitoring
+ * 1. Rate limiting for API routes
+ * 2. API key authentication for programmatic access
+ * 3. Security headers
  * 
- * Note: Using Node.js runtime for crypto support
+ * Note: JWT authentication is handled by individual API routes using getSession()
  */
-
-export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getSession } from '@auth0/nextjs-auth0';
 import { ratelimit } from './lib/redis/client';
 import { authenticateApiKey, isValidApiKeyFormat } from './lib/auth/api-keys';
-
-/**
- * Protected route patterns
- */
-const protectedRoutes = [
-  '/dashboard',
-  '/project',
-  '/api/projects',
-  '/api/findings',
-  '/api/stream',
-];
 
 /**
  * Public routes that don't require authentication
@@ -36,14 +22,8 @@ const publicRoutes = [
   '/login',
   '/api/auth',
   '/api/webhooks',
+  '/api/health',
 ];
-
-/**
- * Check if a path matches any protected route pattern
- */
-function isProtectedRoute(pathname: string): boolean {
-  return protectedRoutes.some(route => pathname.startsWith(route));
-}
 
 /**
  * Check if a path is a public route
@@ -143,19 +123,19 @@ export async function middleware(request: NextRequest) {
     return addCorsHeaders(addSecurityHeaders(response), request);
   }
 
-  // Allow public routes without authentication
+  // Allow public routes without checks
   if (isPublicRoute(pathname)) {
     const response = NextResponse.next();
     return addCorsHeaders(addSecurityHeaders(response), request);
   }
 
-  // Protected routes require authentication (JWT or API key)
-  if (isProtectedRoute(pathname)) {
+  // For API routes, handle API key auth and rate limiting
+  if (pathname.startsWith('/api/')) {
     try {
       let userId: string | null = null;
       let isApiKeyAuth = false;
 
-      // Check for API key authentication first (for programmatic access)
+      // Check for API key authentication (for programmatic access)
       const authHeader = request.headers.get('authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
@@ -164,25 +144,26 @@ export async function middleware(request: NextRequest) {
         if (isValidApiKeyFormat(token)) {
           userId = await authenticateApiKey(token);
           isApiKeyAuth = true;
+          
+          if (!userId) {
+            // Invalid API key
+            return new NextResponse(
+              JSON.stringify({
+                error: 'Invalid API key',
+                code: 'INVALID_API_KEY',
+              }),
+              {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+              }
+            );
+          }
         }
       }
 
-      // Fall back to JWT authentication if no API key
-      if (!userId) {
-        const session = await getSession(request);
-        
-        if (!session || !session.user) {
-          // Redirect to login if not authenticated
-          const loginUrl = new URL('/api/auth/login', request.url);
-          loginUrl.searchParams.set('returnTo', pathname);
-          return NextResponse.redirect(loginUrl);
-        }
-
-        userId = session.user.sub;
-      }
-
-      // Apply rate limiting to API routes (except health checks)
-      if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth') && !isHealthCheckRoute(pathname)) {
+      // Apply rate limiting only if we have a userId from API key
+      // (JWT-based requests will be rate-limited in the API route handlers)
+      if (!isHealthCheckRoute(pathname) && userId && isApiKeyAuth) {
         const { success, limit, remaining, reset } = await ratelimit.limit(userId);
 
         if (!success) {
@@ -212,11 +193,7 @@ export async function middleware(request: NextRequest) {
         response.headers.set('X-RateLimit-Limit', limit.toString());
         response.headers.set('X-RateLimit-Remaining', remaining.toString());
         response.headers.set('X-RateLimit-Reset', reset.toString());
-        
-        // Add authentication method header for debugging
-        if (isApiKeyAuth) {
-          response.headers.set('X-Auth-Method', 'api-key');
-        }
+        response.headers.set('X-Auth-Method', 'api-key');
         
         return addCorsHeaders(addSecurityHeaders(response), request);
       }
@@ -232,14 +209,21 @@ export async function middleware(request: NextRequest) {
     } catch (error) {
       console.error('Middleware error:', error);
       
-      // Redirect to login on authentication errors
-      const loginUrl = new URL('/api/auth/login', request.url);
-      loginUrl.searchParams.set('returnTo', pathname);
-      return NextResponse.redirect(loginUrl);
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Internal server error',
+          code: 'INTERNAL_ERROR',
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
   }
 
-  // Allow all other routes with security headers
+  // For protected page routes (dashboard, project), add security headers
+  // Auth0 will handle authentication via getSession() in the page components
   const response = NextResponse.next();
   return addCorsHeaders(addSecurityHeaders(response), request);
 }

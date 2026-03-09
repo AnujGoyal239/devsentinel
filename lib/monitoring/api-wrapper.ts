@@ -12,6 +12,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { captureException } from './sentry';
 import { logApiRequest, createLogger } from './logger';
 
+// Re-export createLogger for use in API routes
+export { createLogger };
+
 export type ApiHandler = (
   req: NextRequest,
   context?: { params: Record<string, string> }
